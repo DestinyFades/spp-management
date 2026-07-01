@@ -1,0 +1,71 @@
+﻿# ============================================
+# .env файлы (НИКОГДА НЕ КОММИТЬТЕ!)
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# Разрешаем .env.example
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.log
+logs/
+
+# ============================================
+# Node
+# ============================================
+node_modules/
+.npm
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.cache/
+
+# ============================================
+# Docker
+# ============================================
+*.pid
+docker-compose.override.yml
+
+# ============================================
+# IDE
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ============================================
+# Secrets
+# ============================================
+*.pem
+*.key
+*.crt
+.secret
+.secret_key
