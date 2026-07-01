@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status, Body
+﻿from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -7,6 +7,9 @@ import uuid
 import logging
 from typing import List, Optional
 from pydantic import BaseModel
+
+class SaveRequest(BaseModel):
+    session_id: str = "default"
 
 from app.database import get_db, get_redis
 from app.models import SPPVersion, SPPElement, Department, SavedCalculation
@@ -23,9 +26,6 @@ class DistributionRequest(BaseModel):
     version_id: int
     selected_ids: List[int]
     total_amount: float
-
-class SaveRequest(BaseModel):
-    session_id: str = "default"
 
 # --- Эндпоинты ---
 @router.get("/tree/{version_id}")
@@ -93,14 +93,11 @@ async def distribute(
 @router.post("/save/{calc_id}")
 async def save_calculation(
     calc_id: str,
-    save_request: SaveRequest = Body(...),  # ← принимаем тело запроса
+    session_id: str = "default",
     db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
     try:
-        session_id = save_request.session_id  # ← извлекаем из тела
-        logger.info(f"Сохранение: calc_id={calc_id}, session_id={session_id}")
-        
         data = redis.get(f"calc:{calc_id}")
         if not data:
             raise HTTPException(404, "Расчёт не найден или истёк TTL")
@@ -186,3 +183,4 @@ async def export_excel(calc_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Ошибка экспорта: {e}")
         raise HTTPException(500, f"Ошибка экспорта: {str(e)}")
+

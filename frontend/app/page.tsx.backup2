@@ -157,50 +157,33 @@ export default function Home() {
   };
 
     const handleSave = async () => {
-    console.log('🔹 handleSave вызвана!');
-    console.log('🔹 calcResult:', calcResult);
-
+        console.log('handleSave вызвана!');
+        console.log('calcResult:', calcResult);
     if (!calcResult) {
-      console.warn('⚠️ calcResult пуст, сохранение невозможно');
       alert('Сначала выполните распределение');
       return;
     }
 
     try {
       const sessionId = getSessionId();
-      console.log('🔹 sessionId для сохранения:', sessionId);
-      
-      const url = 'http://localhost:8000/api/v1/save/' + calcResult.calc_id;
-      console.log('🔹 URL запроса:', url);
-      
-      const requestBody = JSON.stringify({ session_id: sessionId });
-      console.log('🔹 Тело запроса:', requestBody);
-      
-      console.log('📤 Отправка запроса на сохранение...');
-      const response = await fetch(url, {
+      const response = await fetch('http://localhost:8000/api/v1/save/' + calcResult.calc_id, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: requestBody
+        body: JSON.stringify({ session_id: sessionId })
       });
 
-      console.log('📥 Получен ответ:', response.status, response.statusText);
-      const responseText = await response.text();
-      console.log('📥 Тело ответа:', responseText);
-
       if (response.ok) {
-        const data = JSON.parse(responseText);
-        console.log('✅ Сохранение успешно! ID:', data.id);
+        const data = await response.json();
         alert('✅ Расчет сохранен в базу данных! ID: ' + data.id);
         setCalcResult(null);
-        console.log('🔄 Обновляем список сохраненных...');
         await loadSaved();
       } else {
-        console.error('❌ Ошибка сохранения:', response.status, responseText);
-        alert('❌ Ошибка сохранения: ' + (responseText || 'Неизвестная ошибка'));
+        const error = await response.json();
+        alert('❌ Ошибка сохранения: ' + (error.detail || 'Неизвестная ошибка'));
       }
     } catch (err) {
-      console.error('❌ Исключение при сохранении:', err);
-      alert('❌ Ошибка сохранения: ' + err.message);
+      console.error('Ошибка сохранения:', err);
+      alert('❌ Ошибка сохранения');
     }
   };
 
@@ -259,10 +242,8 @@ export default function Home() {
           
           {calcResult && (
             <button
-              onClick={() => {
-                console.log('Кнопка сохранения нажата');
-                handleSave();
-              }}
+              onClick={console.log('Кнопка нажата');
+              handleSave();}
               style={{
                 marginTop: '1rem',
                 padding: '0.5rem 1rem',
@@ -391,4 +372,3 @@ export default function Home() {
     </div>
   );
 }
-

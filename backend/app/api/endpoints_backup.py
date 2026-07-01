@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status, Body
+﻿from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -19,13 +19,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # --- Pydantic модели ---
+class ElementCreate(BaseModel):
+    code: str
+    name: str
+    parent_id: Optional[int] = None
+    status: str = "Действующий"
+    level: int = 1
+    department_ids: List[int] = []
+
+class ElementUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    status: Optional[str] = None
+    department_ids: Optional[List[int]] = None
+
 class DistributionRequest(BaseModel):
     version_id: int
     selected_ids: List[int]
     total_amount: float
-
-class SaveRequest(BaseModel):
-    session_id: str = "default"
 
 # --- Эндпоинты ---
 @router.get("/tree/{version_id}")
@@ -38,6 +49,87 @@ async def get_tree(version_id: int, db: Session = Depends(get_db)):
 @router.get("/dates")
 async def get_dates(db: Session = Depends(get_db)):
     return await TreeService.get_versions(db)
+
+# --- CRUD для элементов ---
+@router.post("/elements", status_code=status.HTTP_201_CREATED)
+async def create_element(
+    element: ElementCreate,
+    db: Session = Depends(get_db)
+):
+    new_version = SPPVersion(version_date=datetime.now().date())
+    db.add(new_version)
+    db.commit()
+    db.refresh(new_version)
+    
+    new_element = SPPElement(
+        code=element.code,
+        name=element.name,
+        parent_id=element.parent_id,
+        version_id=new_version.id,
+        status=element.status,
+        level=element.level
+    )
+    db.add(new_element)
+    db.commit()
+    db.refresh(new_element)
+    
+    if element.department_ids:
+        depts = db.query(Department).filter(Department.id.in_(element.department_ids)).all()
+        new_element.departments = depts
+        db.commit()
+    
+    return new_element
+
+@router.put("/elements/{element_id}")
+async def update_element(
+    element_id: int,
+    element: ElementUpdate,
+    db: Session = Depends(get_db)
+):
+    current = db.query(SPPElement).filter(SPPElement.id == element_id).first()
+    if not current:
+        raise HTTPException(404, "Элемент не найден")
+    
+    version = db.query(SPPVersion).filter(SPPVersion.id == current.version_id).first()
+    if version:
+        version.is_current = False
+        version.valid_to = datetime.now()
+        db.commit()
+    
+    new_version = SPPVersion(version_date=datetime.now().date())
+    db.add(new_version)
+    db.commit()
+    db.refresh(new_version)
+    
+    if element.code:
+        current.code = element.code
+    if element.name:
+        current.name = element.name
+    if element.status:
+        current.status = element.status
+    current.version_id = new_version.id
+    db.commit()
+    
+    if element.department_ids is not None:
+        depts = db.query(Department).filter(Department.id.in_(element.department_ids)).all()
+        current.departments = depts
+        db.commit()
+    
+    return current
+
+@router.delete("/elements/{element_id}")
+async def delete_element(
+    element_id: int,
+    db: Session = Depends(get_db)
+):
+    element = db.query(SPPElement).filter(SPPElement.id == element_id).first()
+    if not element:
+        raise HTTPException(404, "Элемент не найден")
+    
+    element.status = "Недействующий"
+    db.commit()
+    
+    return {"message": "Элемент деактивирован"}
 
 # --- Распределение ---
 @router.post("/distribute")
@@ -53,7 +145,6 @@ async def distribute(
         if not tree:
             raise HTTPException(404, "Версия не найдена")
         
-        # Валидация: проверяем, что выбранные элементы существуют
         existing_ids = set()
         def collect_ids(node):
             existing_ids.add(node["id"])
@@ -93,14 +184,11 @@ async def distribute(
 @router.post("/save/{calc_id}")
 async def save_calculation(
     calc_id: str,
-    save_request: SaveRequest = Body(...),  # ← принимаем тело запроса
+    session_id: str = "default",
     db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
     try:
-        session_id = save_request.session_id  # ← извлекаем из тела
-        logger.info(f"Сохранение: calc_id={calc_id}, session_id={session_id}")
-        
         data = redis.get(f"calc:{calc_id}")
         if not data:
             raise HTTPException(404, "Расчёт не найден или истёк TTL")
@@ -186,3 +274,4 @@ async def export_excel(calc_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Ошибка экспорта: {e}")
         raise HTTPException(500, f"Ошибка экспорта: {str(e)}")
+

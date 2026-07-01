@@ -12,15 +12,7 @@ export default function Home() {
   const [savedList, setSavedList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const getSessionId = (): string => {
-    let sessionId = localStorage.getItem('sessionId');
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      localStorage.setItem('sessionId', sessionId);
-    }
-    return sessionId;
-  };
-
+  // Загрузка дерева по версии
   const loadTree = async (vid: number) => {
     setLoading(true);
     try {
@@ -39,22 +31,20 @@ export default function Home() {
     }
   };
 
+  // Загрузка сохраненных расчетов
   const loadSaved = async () => {
     try {
-      const sessionId = getSessionId();
-      const response = await fetch('http://localhost:8000/api/v1/saved/' + sessionId);
+      const response = await fetch('http://localhost:8000/api/v1/saved/default');
       if (response.ok) {
         const data = await response.json();
         setSavedList(data);
-        console.log('Загружено сохраненных расчетов:', data.length);
-      } else {
-        console.error('Ошибка загрузки списка:', response.status);
       }
     } catch (err) {
       console.error('Ошибка загрузки сохраненных расчетов:', err);
     }
   };
 
+  // Загрузка сохраненного расчета в дерево (ЗАДАЧА 10)
   const loadSavedCalculation = async (calcId: number) => {
     try {
       const response = await fetch('http://localhost:8000/api/v1/saved/' + calcId + '/load');
@@ -69,15 +59,18 @@ export default function Home() {
     }
   };
 
+  // Загрузка при первом рендере
   useEffect(() => {
     loadTree(1);
     loadSaved();
   }, []);
 
+  // Обработчик выбора даты
   const handleDateChange = (vid: number) => {
     loadTree(vid);
   };
 
+  // Рендер узла дерева
   const renderNode = (node: any, level: number = 0) => {
     const isChecked = selectedIds.includes(node.id);
     const hasChildren = node.children && node.children.length > 0;
@@ -121,6 +114,7 @@ export default function Home() {
     );
   };
 
+  // Выполнение распределения
   const handleDistribute = async () => {
     if (selectedIds.length === 0) {
       alert('Выберите хотя бы один элемент');
@@ -156,54 +150,33 @@ export default function Home() {
     }
   };
 
-    const handleSave = async () => {
-    console.log('🔹 handleSave вызвана!');
-    console.log('🔹 calcResult:', calcResult);
-
+  // Сохранение расчета
+  const handleSave = async () => {
     if (!calcResult) {
-      console.warn('⚠️ calcResult пуст, сохранение невозможно');
       alert('Сначала выполните распределение');
       return;
     }
 
     try {
-      const sessionId = getSessionId();
-      console.log('🔹 sessionId для сохранения:', sessionId);
-      
-      const url = 'http://localhost:8000/api/v1/save/' + calcResult.calc_id;
-      console.log('🔹 URL запроса:', url);
-      
-      const requestBody = JSON.stringify({ session_id: sessionId });
-      console.log('🔹 Тело запроса:', requestBody);
-      
-      console.log('📤 Отправка запроса на сохранение...');
-      const response = await fetch(url, {
+      const response = await fetch('http://localhost:8000/api/v1/save/' + calcResult.calc_id, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: requestBody
+        body: JSON.stringify({ session_id: 'default' })
       });
 
-      console.log('📥 Получен ответ:', response.status, response.statusText);
-      const responseText = await response.text();
-      console.log('📥 Тело ответа:', responseText);
-
       if (response.ok) {
-        const data = JSON.parse(responseText);
-        console.log('✅ Сохранение успешно! ID:', data.id);
+        const data = await response.json();
         alert('✅ Расчет сохранен в базу данных! ID: ' + data.id);
         setCalcResult(null);
-        console.log('🔄 Обновляем список сохраненных...');
-        await loadSaved();
-      } else {
-        console.error('❌ Ошибка сохранения:', response.status, responseText);
-        alert('❌ Ошибка сохранения: ' + (responseText || 'Неизвестная ошибка'));
+        loadSaved();
       }
     } catch (err) {
-      console.error('❌ Исключение при сохранении:', err);
-      alert('❌ Ошибка сохранения: ' + err.message);
+      console.error('Ошибка сохранения:', err);
+      alert('❌ Ошибка сохранения');
     }
   };
 
+  // Экспорт в Excel
   const handleExport = async (calcId: number) => {
     try {
       const response = await fetch('http://localhost:8000/api/v1/export/' + calcId);
@@ -236,9 +209,12 @@ export default function Home() {
       <h1 style={{ marginBottom: '1.5rem', color: '#1a1a1a' }}>🚀 SPP Management</h1>
       
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+        {/* Левая колонка */}
         <div>
+          {/* КОМБОБОКС ВЫБОРА ДАТЫ (ЗАДАЧА 9) */}
           <DateSelector onDateChange={handleDateChange} />
           
+          {/* Дерево */}
           <div style={{ 
             padding: '1rem', 
             background: '#fff', 
@@ -257,12 +233,10 @@ export default function Home() {
             )}
           </div>
           
+          {/* Кнопка сохранения */}
           {calcResult && (
             <button
-              onClick={() => {
-                console.log('Кнопка сохранения нажата');
-                handleSave();
-              }}
+              onClick={handleSave}
               style={{
                 marginTop: '1rem',
                 padding: '0.5rem 1rem',
@@ -279,7 +253,9 @@ export default function Home() {
           )}
         </div>
         
+        {/* Правая колонка */}
         <div>
+          {/* Панель распределения */}
           <div style={{ padding: '1rem', background: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
             <h3>💰 Распределение суммы</h3>
             <div style={{ marginBottom: '0.5rem' }}>
@@ -323,6 +299,7 @@ export default function Home() {
             </div>
           </div>
           
+          {/* Список сохраненных расчетов (с кнопкой Загрузить - ЗАДАЧА 10) */}
           <div style={{ 
             marginTop: '1rem', 
             padding: '1rem', 
@@ -391,4 +368,3 @@ export default function Home() {
     </div>
   );
 }
-
