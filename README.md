@@ -147,10 +147,6 @@ spp-management/
 ## 📄 Лицензия
 MIT
 
-## 👤 Контакты
-- GitHub: https://github.com/DestinyFades
-- Email: [ваш email]
-
 ## 📅 Дата
 Июль 2026
 
